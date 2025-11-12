@@ -28,8 +28,11 @@
 #   - Tasks: specs/001-ai-sandbox/tasks.md (Phase 3, T044)
 #   - Quick Start: specs/001-ai-sandbox/quickstart.md
 #
-# Usage: ./deploy-full.sh [instance-type] [region] [model-id]
+# Usage: ./deploy-full.sh [instance-type] [region] [model-id] [stackscript-type]
 #   If parameters are omitted, interactive prompts will be shown
+#   stackscript-type: "clean" (default) or "golden"
+#     - "clean": Uses ai-sandbox-clean.sh (installs Docker)
+#     - "golden": Uses ai-sandbox-golden.sh (assumes Docker pre-installed)
 
 set -euo pipefail
 
@@ -275,6 +278,72 @@ fi
 
 MODEL_ID="${3:-mistralai/Mistral-7B-Instruct-v0.3}"
 
+# Prompt for StackScript type if not provided
+if [ -n "${4:-}" ]; then
+    # Parameter provided - validate and use it
+    STACKSCRIPT_TYPE="${4}"
+elif [ "${IS_INTERACTIVE}" = "true" ]; then
+    # Interactive mode - prompt user
+    echo "" >&2
+    echo -e "${CYAN}Select StackScript Type:${NC}" >&2
+    echo "  1) Clean instance (will install Docker)" >&2
+    echo "  2) Golden image (Docker pre-installed)" >&2
+    
+    # Use /dev/tty for reading if available, otherwise stdin
+    tty_input=""
+    if [ -c /dev/tty ] && [ -r /dev/tty ] 2>/dev/null; then
+        tty_input="</dev/tty"
+    fi
+    
+    while true; do
+        echo -ne "${CYAN}Enter choice [1-2] (default: 1): ${NC}" >&2
+        # Try to read from TTY, fallback to stdin
+        choice=""
+        if ! eval "read -r choice ${tty_input}" 2>/dev/null; then
+            # If reading fails, use default
+            echo -e "\n${YELLOW}Cannot read input. Using default (clean).${NC}" >&2
+            STACKSCRIPT_TYPE="clean"
+            break
+        fi
+        
+        if [ -z "${choice}" ] || [ "${choice}" = "1" ]; then
+            STACKSCRIPT_TYPE="clean"
+            break
+        elif [ "${choice}" = "2" ]; then
+            STACKSCRIPT_TYPE="golden"
+            break
+        else
+            echo -e "${RED}Invalid choice. Please enter 1 or 2.${NC}" >&2
+        fi
+    done
+else
+    # Non-interactive mode - use default
+    STACKSCRIPT_TYPE="clean"
+fi
+
+# Validate and set StackScript file based on type
+case "${STACKSCRIPT_TYPE}" in
+    clean)
+        STACKSCRIPT_FILE="stackscripts/ai-sandbox-clean.sh"
+        STACKSCRIPT_DESC="Clean instance (will install Docker)"
+        ;;
+    golden)
+        STACKSCRIPT_FILE="stackscripts/ai-sandbox.sh"
+        STACKSCRIPT_DESC="Golden image (Docker pre-installed)"
+        ;;
+    *)
+        echo -e "${RED}Error: Invalid stackscript-type '${STACKSCRIPT_TYPE}'${NC}" >&2
+        echo "Valid options: 'clean' or 'golden'" >&2
+        exit 1
+        ;;
+esac
+
+# Verify StackScript file exists
+if [ ! -f "${PROJECT_ROOT}/${STACKSCRIPT_FILE}" ]; then
+    show_error "StackScript file not found: ${STACKSCRIPT_FILE}"
+    exit 1
+fi
+
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║     AI Sandbox - Full Deployment Workflow                ║${NC}"
@@ -284,6 +353,7 @@ echo "Configuration:"
 echo "  Instance Type: ${INSTANCE_TYPE}"
 echo "  Region: ${REGION}"
 echo "  Model ID: ${MODEL_ID}"
+echo "  StackScript: ${STACKSCRIPT_TYPE} (${STACKSCRIPT_DESC})"
 echo ""
 
 # Step 1: Create instance
@@ -415,8 +485,9 @@ log "Instance IP: ${INSTANCE_IP}"
 # Note: deploy-direct.sh will wait for SSH to be available before proceeding
 echo -e "${GREEN}Step 2: Deploying StackScript...${NC}"
 log "Deploying StackScript to instance ${INSTANCE_ID}"
+log "StackScript file: ${STACKSCRIPT_FILE}"
 export MODEL_ID="${MODEL_ID}"
-if ! "${SCRIPT_DIR}/deploy-direct.sh" "${INSTANCE_ID}" 2>&1 | tee -a "${LOG_FILE}"; then
+if ! "${SCRIPT_DIR}/deploy-direct.sh" "${INSTANCE_ID}" "${STACKSCRIPT_FILE}" 2>&1 | tee -a "${LOG_FILE}"; then
     echo -e "${YELLOW}⚠️  Warning: Deployment may have encountered issues${NC}" >&2
     echo "Check logs on the instance for details" >&2
     log "WARNING: StackScript deployment may have failed"

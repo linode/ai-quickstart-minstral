@@ -1,42 +1,33 @@
 #!/bin/bash
 #<UDF name="MODEL_ID" label="AI Model ID" default="mistralai/Mistral-7B-Instruct-v0.3" example="mistralai/Mistral-7B-Instruct-v0.3">
 #
-# NOTE: This script is for GOLDEN IMAGES (Docker pre-installed).
-#       For CLEAN INSTANCES (Docker not installed), use: ai-sandbox-clean.sh
-#
 # Purpose:
-#   Linode StackScript that automatically deploys the AI Sandbox on first boot.
-#   Configures and launches both vLLM API server and Open WebUI chat interface
-#   within 5 minutes of instance boot. This enables one-click deployment of a
-#   complete AI inference stack without manual configuration.
+#   Linode StackScript that automatically deploys the AI Sandbox on a CLEAN Linux instance.
+#   This script assumes Docker is NOT installed and will install Docker, Docker Compose,
+#   and NVIDIA Container Toolkit before deploying the AI Sandbox services.
 #
-#   Why it exists: Provides automated deployment for Marketplace App and
-#   independent deployment workflows. Eliminates manual setup steps.
-#
-# IMPORTANT: This script assumes Docker is PRE-INSTALLED (golden image).
-#            If Docker is NOT installed, use ai-sandbox-clean.sh instead.
+#   Use this script for:
+#   - Fresh Ubuntu 22.04 LTS instances (no pre-installed Docker)
+#   - Standard Linode images without custom golden images
+#   - Any clean Linux instance where Docker needs to be installed
 #
 # Dependencies:
-#   - Ubuntu 22.04 LTS base image (Golden Image with pre-installed components)
-#   - NVIDIA Drivers (pre-installed in Golden Image)
-#   - Docker Engine (pre-installed in Golden Image)
-#   - Docker Compose v2 (pre-installed in Golden Image)
-#   - Internet connectivity (for pulling container images and model files)
+#   - Ubuntu 22.04 LTS base image (clean, no Docker pre-installed)
+#   - Internet connectivity (for installing Docker and pulling container images)
 #   - GPU instance type (for AI model inference)
+#   - Root/sudo access (for package installation)
 #
 # Troubleshooting:
 #   - Deployment failures: Check /var/log/ai-sandbox/deployment.log for detailed errors
+#   - Docker installation issues: Verify internet connectivity, check apt repositories
 #   - Service startup issues: Verify Docker is running, check port conflicts (3000, 8000)
 #   - Model download failures: Check network connectivity, disk space (~14GB required)
 #   - GPU issues: Verify instance type has GPU support, check NVIDIA driver installation
 #   - Error messages displayed in /etc/motd with specific failure reasons and guidance
-#   - See docs/troubleshooting.md for detailed troubleshooting steps
 #
 # Specification Links:
 #   - Feature Spec: specs/001-ai-sandbox/spec.md
 #   - Implementation Plan: specs/001-ai-sandbox/plan.md
-#   - Research Decisions: specs/001-ai-sandbox/research.md
-#   - Data Model: specs/001-ai-sandbox/data-model.md
 #
 # Constitution Compliance:
 #   - Principle II: One-Click Deployment Reliability (5-minute target, automatic setup)
@@ -161,39 +152,89 @@ create_directories() {
     chmod 755 "${COMPOSE_DIR}"
 }
 
-# Verify Docker is installed and running (for golden images)
-# This function assumes Docker SHOULD be installed and will error if it's not
-verify_docker_installed() {
-    log "Verifying Docker is installed (golden image assumption)..."
+# Install Docker Engine, Docker Compose, and NVIDIA Container Toolkit
+# This function assumes Docker is NOT installed (for clean instances)
+install_docker_and_dependencies() {
+    log "Installing Docker and dependencies (this script assumes Docker is NOT installed)..."
     
-    # Check if Docker command exists
-    if ! command -v docker &>/dev/null; then
-        error_exit "Docker is not installed. This script requires a golden image with Docker pre-installed. Use ai-sandbox-clean.sh for clean instances."
-    fi
+    # Set non-interactive mode for apt
+    export DEBIAN_FRONTEND=noninteractive
     
-    # Check if Docker is running
-    if ! systemctl is-active --quiet docker; then
-        log "Docker service is not running. Starting Docker..."
-        systemctl start docker
-        sleep 2
-    fi
+    # Update system packages
+    log "Updating system packages..."
+    apt-get update -qq
+    apt-get upgrade -y -qq -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" || true
     
-    # Verify Docker is working
-    if ! docker info &>/dev/null; then
-        error_exit "Docker is installed but not working properly. Check Docker service status."
-    fi
+    # Remove old Docker versions if they exist (shouldn't on clean instance, but just in case)
+    log "Removing any old Docker versions..."
+    apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
     
-    log "✓ Docker is installed and running: $(docker --version)"
+    # Install prerequisites
+    log "Installing prerequisites..."
+    apt-get install -y -qq \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
     
-    # Check for Docker Compose
-    if ! command -v docker-compose &>/dev/null && ! docker compose version &>/dev/null; then
-        error_exit "Docker Compose is not installed. This script requires Docker Compose to be pre-installed."
-    fi
+    # Add Docker's official GPG key
+    log "Adding Docker GPG key..."
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     
-    if command -v docker-compose &>/dev/null; then
-        log "✓ Docker Compose is installed: $(docker-compose --version)"
+    # Set up Docker repository
+    log "Setting up Docker repository..."
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Install Docker Engine
+    log "Installing Docker Engine..."
+    apt-get update -qq
+    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Start and enable Docker
+    log "Starting Docker service..."
+    systemctl start docker
+    systemctl enable docker
+    
+    log "✓ Docker installed: $(docker --version)"
+    
+    # Install Docker Compose (standalone for compatibility)
+    log "Installing Docker Compose (standalone)..."
+    COMPOSE_VERSION="v2.24.0"
+    curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+        -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    
+    log "✓ Docker Compose installed: $(docker-compose --version)"
+    
+    # Install NVIDIA Container Toolkit
+    log "Installing NVIDIA Container Toolkit..."
+    
+    # Add NVIDIA repository
+    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    
+    apt-get update -qq
+    apt-get install -y -qq nvidia-container-toolkit
+    
+    # Configure Docker to use NVIDIA runtime
+    log "Configuring Docker for NVIDIA GPU support..."
+    nvidia-ctk runtime configure --runtime=docker
+    systemctl restart docker
+    
+    log "✓ NVIDIA Container Toolkit installed"
+    
+    # Verify Docker installation
+    log "Verifying Docker installation..."
+    if docker run --rm hello-world > /dev/null 2>&1; then
+        log "✓ Docker is working"
     else
-        log "✓ Docker Compose plugin is available: $(docker compose version)"
+        log "⚠️  Docker test failed (but continuing)"
     fi
 }
 
@@ -469,14 +510,14 @@ validate_openai_api_compatibility() {
 
 # Main deployment function
 main() {
-    log "Starting AI Sandbox deployment (GOLDEN IMAGE - Docker should be pre-installed)..."
+    log "Starting AI Sandbox deployment (CLEAN INSTANCE - Docker will be installed)..."
     log "Model ID: ${MODEL_ID}"
-
-    # Verify Docker is installed (this script assumes it should be)
-    verify_docker_installed
 
     # Create directories
     create_directories
+
+    # Install Docker and dependencies (this script assumes Docker is NOT installed)
+    install_docker_and_dependencies
 
     # Check and install NVIDIA drivers if needed
     ensure_nvidia_drivers
