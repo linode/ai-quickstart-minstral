@@ -24,6 +24,9 @@ __pycache__/
 # Internal documentation
 .internal-docs/
 
+# Specs directory
+specs/
+
 # OS files
 .DS_Store
 Thumbs.db
