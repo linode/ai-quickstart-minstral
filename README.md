@@ -34,6 +34,7 @@ Both services are managed via Docker Compose and configured to restart automatic
 ## 📋 Requirements
 
 - A Linode GPU instance (any supported GPU instance type)
+  - **Note**: GPU instances require GPU access to be enabled on your account. If you don't see GPU instance types available, please contact Linode Support to enable GPU access.
 - The "One-Click AI Sandbox" Marketplace App
 
 ## 🎯 Use Cases
