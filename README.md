@@ -1,4 +1,4 @@
-# AI Quickstart - Minstral LLM
+# AI Quickstart - Minstral 7B LLM
 
 Deploy a complete, pre-configured AI inference stack with both a chat UI and an OpenAI-compatible API endpoint in minutes on Linode GPU instances.
 
@@ -12,7 +12,7 @@ Get started quickly by deploying to a clean Linode GPU instance. See the [Quick 
 - **Complete AI Stack**: Includes both a web-based chat interface and an OpenAI-compatible API
 - **Pre-Configured**: NVIDIA drivers, Docker, and all dependencies pre-installed
 - **Fast Time-to-Value**: From instance boot to working AI in under 5 minutes
-- **Model Flexibility**: Choose any model from Hugging Face at deployment
+- **Model Flexibility**: Choose any7model from Hugging Face at deployment
 - **OpenAI-Compatible API**: Drop-in replacement for OpenAI endpoints—just change your `BASE_URL`
 
 ## 🏗️ Architecture
