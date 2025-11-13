@@ -20,7 +20,7 @@
 #   - "linode-cli not configured": Run 'linode-cli configure' with API token
 #   - "jq not installed": Install with 'brew install jq' (macOS) or 'apt-get install jq' (Linux)
 #   - "SSH key not found": Generate with 'ssh-keygen -t rsa -b 4096' (optional but recommended)
-#   - "StackScript not found": Verify you're in project root, check file exists
+#   - "Cloud-init file not found": Verify you're in project root, check file exists
 #
 # Specification Links:
 #   - Tasks: specs/001-ai-sandbox/tasks.md (Phase 3 prerequisites)
@@ -42,7 +42,7 @@ NC='\033[0m'
 
 ERRORS=0
 
-echo "Checking prerequisites for AI Sandbox deployment..."
+echo "Checking prerequisites for AI Quickstart - Minstral LLM deployment..."
 echo ""
 
 # Check linode-cli
@@ -116,11 +116,11 @@ else
     echo "  To enable key-based auth, generate with: ssh-keygen -t ed25519"
 fi
 
-# Check StackScript file
-if [ -f "${PROJECT_ROOT}/stackscripts/ai-sandbox.sh" ]; then
-    echo -e "${GREEN}✓ StackScript found: stackscripts/ai-sandbox.sh${NC}"
+# Check cloud-init file
+if [ -f "${PROJECT_ROOT}/cloud-init/ai-sandbox.yaml" ]; then
+    echo -e "${GREEN}✓ Cloud-init file found: cloud-init/ai-sandbox.yaml${NC}"
 else
-    echo -e "${RED}✗ StackScript not found: stackscripts/ai-sandbox.sh${NC}"
+    echo -e "${RED}✗ Cloud-init file not found: cloud-init/ai-sandbox.yaml${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 

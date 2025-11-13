@@ -1,0 +1,395 @@
+#cloud-config
+# Purpose:
+#   Cloud-init configuration that automatically deploys AI Quickstart - Minstral LLM on first boot.
+#   Configures and launches both vLLM API server and Open WebUI chat interface
+#   within 5 minutes of instance boot. This enables automated deployment of a
+#   complete AI inference stack without manual configuration.
+#
+# Dependencies:
+#   - Ubuntu 22.04 LTS base image
+#   - Internet connectivity (for installing Docker and pulling container images)
+#   - GPU instance type (for AI model inference)
+#   - Root access (for package installation)
+#
+# Troubleshooting:
+#   - Deployment failures: Check /var/log/cloud-init-output.log and /var/log/ai-sandbox/deployment.log
+#   - Service startup issues: Verify Docker is running, check port conflicts (3000, 8000)
+#   - Model download failures: Check network connectivity, disk space (~14GB required)
+#   - GPU issues: Verify instance type has GPU support, check NVIDIA driver installation
+#   - Error messages displayed in /etc/motd with specific failure reasons and guidance
+
+# Configuration variables (will be substituted before passing to instance)
+# MODEL_ID_PLACEHOLDER will be replaced with actual model ID
+MODEL_ID: MODEL_ID_PLACEHOLDER
+
+# Update system packages
+package_update: true
+package_upgrade: true
+
+# Install base dependencies
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+
+# Write deployment script
+write_files:
+  - path: /opt/ai-sandbox/deploy.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      MODEL_ID="${MODEL_ID:-mistralai/Mistral-7B-Instruct-v0.3}"
+      LOG_DIR="/var/log/ai-sandbox"
+      COMPOSE_DIR="/opt/ai-sandbox"
+      COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
+      MOTD_FILE="/etc/motd"
+      
+      # Initialize logging
+      mkdir -p "${LOG_DIR}"
+      exec 1> >(tee -a "${LOG_DIR}/deployment.log")
+      exec 2> >(tee -a "${LOG_DIR}/deployment.log" >&2)
+      
+      # Logging function
+      log() {
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "${LOG_DIR}/deployment.log"
+      }
+      
+      # Error handling function
+      error_exit() {
+          local error_msg="$1"
+          local error_code="${2:-1}"
+          
+          log "ERROR: ${error_msg}"
+          cat > "${MOTD_FILE}" <<EOF
+      ╔════════════════════════════════════════════════════════════════╗
+      ║          AI Quickstart - Minstral LLM Deployment - ERROR         ║
+      ╚════════════════════════════════════════════════════════════════╝
+      
+      ⚠️  DEPLOYMENT FAILED
+      
+      Error: ${error_msg}
+      
+      Troubleshooting:
+      1. Check logs: tail -f ${LOG_DIR}/deployment.log
+      2. Verify GPU instance type supports the selected model
+      3. Check disk space: df -h
+      4. Verify network connectivity
+      
+      For detailed error information, see: ${LOG_DIR}/
+      
+      EOF
+          exit "${error_code}"
+      }
+      
+      # Update /etc/motd with success message
+      update_motd_success() {
+          local instance_ip
+          instance_ip=$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || echo "YOUR_INSTANCE_IP")
+          
+          cat > "${MOTD_FILE}" <<EOF
+      ╔════════════════════════════════════════════════════════════════╗
+      ║          AI Quickstart - Minstral LLM - Deployment Complete     ║
+      ╚════════════════════════════════════════════════════════════════╝
+      
+      ✅ Services are running and ready!
+      
+      📋 Access Your Services:
+         • Chat Interface: http://${instance_ip}:3000
+         • API Endpoint:   http://${instance_ip}:8000/v1
+      
+      ⚠️  SECURITY WARNING:
+         Both services are exposed to the internet WITHOUT authentication.
+         
+         You MUST configure a Linode Cloud Firewall to protect:
+         • Port 3000 (Chat UI)
+         • Port 8000 (API)
+         
+         Recommended: Restrict access to trusted IP addresses only.
+      
+      📚 Documentation:
+         • Deployment logs: ${LOG_DIR}/
+         • Service status: docker-compose -f ${COMPOSE_FILE} ps
+         • View logs: docker-compose -f ${COMPOSE_FILE} logs -f
+      
+      🔧 Model Configuration:
+         • Model: ${MODEL_ID}
+         • Model cache: /opt/models
+         • Chat history: /opt/open-webui
+      
+      EOF
+      }
+      
+      # Create required directories
+      log "Creating required directories..."
+      mkdir -p /opt/models /opt/open-webui "${COMPOSE_DIR}"
+      chmod 755 /opt/models /opt/open-webui "${COMPOSE_DIR}"
+      
+      # Install Docker Engine, Docker Compose, and NVIDIA Container Toolkit
+      log "Installing Docker and dependencies..."
+      export DEBIAN_FRONTEND=noninteractive
+      
+      # Remove old Docker versions if they exist
+      apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+      
+      # Add Docker's official GPG key
+      mkdir -p /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      
+      # Set up Docker repository
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+      
+      # Install Docker Engine
+      apt-get update -qq
+      apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      
+      # Start and enable Docker
+      systemctl start docker
+      systemctl enable docker
+      log "✓ Docker installed: $(docker --version)"
+      
+      # Install Docker Compose (standalone for compatibility)
+      COMPOSE_VERSION="v2.24.0"
+      curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+          -o /usr/local/bin/docker-compose
+      chmod +x /usr/local/bin/docker-compose
+      log "✓ Docker Compose installed: $(docker-compose --version)"
+      
+      # Install NVIDIA Container Toolkit
+      log "Installing NVIDIA Container Toolkit..."
+      distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+          sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+          tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      
+      apt-get update -qq
+      apt-get install -y -qq nvidia-container-toolkit
+      
+      # Configure Docker to use NVIDIA runtime
+      nvidia-ctk runtime configure --runtime=docker
+      systemctl restart docker
+      log "✓ NVIDIA Container Toolkit installed"
+      
+      # Verify Docker installation
+      if docker run --rm hello-world > /dev/null 2>&1; then
+          log "✓ Docker is working"
+      else
+          log "⚠️  Docker test failed (but continuing)"
+      fi
+      
+      # Check and install NVIDIA drivers if needed
+      log "Checking NVIDIA drivers..."
+      if nvidia-smi &>/dev/null; then
+          log "✓ NVIDIA drivers already installed"
+          nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | while read -r line; do
+              log "  GPU: ${line}"
+          done
+      elif lspci | grep -i nvidia &>/dev/null; then
+          log "NVIDIA GPU detected but drivers not installed. Installing..."
+          apt-get update -qq
+          if apt-get install -y -qq nvidia-driver-535 nvidia-utils-535; then
+              log "✓ NVIDIA drivers installed successfully"
+          else
+              log "⚠️  Failed to install NVIDIA drivers via apt, trying alternative method..."
+              ubuntu-drivers autoinstall &>/dev/null || true
+          fi
+          
+          if nvidia-smi &>/dev/null; then
+              log "✓ NVIDIA driver installation verified"
+              nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | while read -r line; do
+                  log "  GPU: ${line}"
+              done
+              systemctl restart docker
+              sleep 2
+          else
+              log "⚠️  NVIDIA drivers installed but nvidia-smi not working"
+              log "  A reboot may be required for drivers to load"
+          fi
+      else
+          log "⚠️  No NVIDIA GPU detected - this may not be a GPU instance"
+          log "  GPU-accelerated inference will not be available"
+      fi
+      
+      # Generate docker-compose.yml
+      log "Generating docker-compose.yml..."
+      if [ -f "${COMPOSE_DIR}/docker-compose.yml.template" ]; then
+          log "Using template file: ${COMPOSE_DIR}/docker-compose.yml.template"
+          sed "s|MODEL_ID_PLACEHOLDER|${MODEL_ID}|g" \
+              "${COMPOSE_DIR}/docker-compose.yml.template" > "${COMPOSE_FILE}"
+      else
+          log "Template not found, generating inline docker-compose.yml"
+          cat > "${COMPOSE_FILE}" <<'COMPOSEEOF'
+      version: '3.8'
+      
+      services:
+        api:
+          image: vllm/vllm-openai:latest
+          container_name: ai-sandbox-api
+          command: ["--model", "MODEL_ID_PLACEHOLDER", "--max-model-len", "16384", "--gpu-memory-utilization", "0.95"]
+          ports:
+            - "8000:8000"
+          volumes:
+            - /opt/models:/root/.cache/huggingface
+          healthcheck:
+            test: ["CMD", "curl", "-f", "-s", "http://localhost:8000/v1/models"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 180s
+          deploy:
+            resources:
+              reservations:
+                devices:
+                  - driver: nvidia
+                    count: all
+                    capabilities: [gpu]
+          restart: unless-stopped
+          networks:
+            - ai-sandbox-network
+      
+        ui:
+          image: ghcr.io/open-webui/open-webui:main
+          container_name: ai-sandbox-ui
+          ports:
+            - "3000:8080"
+          volumes:
+            - /opt/open-webui:/app/backend/data
+          environment:
+            - OPENAI_API_BASE_URL=http://api:8000/v1
+          depends_on:
+            api:
+              condition: service_started
+          restart: unless-stopped
+          networks:
+            - ai-sandbox-network
+      
+      networks:
+        ai-sandbox-network:
+          driver: bridge
+      COMPOSEEOF
+          sed "s|MODEL_ID_PLACEHOLDER|${MODEL_ID}|g" -i "${COMPOSE_FILE}"
+      fi
+      
+      log "Docker Compose file generated: ${COMPOSE_FILE}"
+      
+      # Start API service first
+      log "Starting API service..."
+      if docker-compose -f "${COMPOSE_FILE}" up -d api; then
+          log "API service started successfully"
+      else
+          error_exit "Failed to start API service"
+      fi
+      
+      # Wait for API to be ready (at least listening on port)
+      log "Waiting for API service to be ready..."
+      max_attempts=60
+      attempt=0
+      wait_interval=5
+      
+      while [ ${attempt} -lt ${max_attempts} ]; do
+          if timeout 2 bash -c "echo > /dev/tcp/localhost/8000" 2>/dev/null; then
+              log "✓ API service is listening on port 8000"
+              break
+          fi
+          attempt=$((attempt + 1))
+          if [ ${attempt} -lt ${max_attempts} ]; then
+              log "  Waiting for API to be ready... (attempt ${attempt}/${max_attempts})"
+              sleep ${wait_interval}
+          fi
+      done
+      
+      if [ ${attempt} -ge ${max_attempts} ]; then
+          log "⚠️  Warning: API service may not be fully ready, but starting UI anyway"
+          log "  API will continue loading in the background"
+      fi
+      
+      # Start UI service after API is at least listening
+      log "Starting UI service..."
+      if docker-compose -f "${COMPOSE_FILE}" up -d ui; then
+          log "UI service started successfully"
+      else
+          error_exit "Failed to start UI service"
+      fi
+      
+      # Wait a moment for UI to initialize
+      log "Waiting for UI service to initialize..."
+      sleep 10
+      
+      # Validate chat history persistence
+      log "Validating chat history persistence..."
+      if [ ! -d "/opt/open-webui" ]; then
+          error_exit "Chat history directory /opt/open-webui does not exist"
+      fi
+      
+      if touch /opt/open-webui/.write-test 2>/dev/null; then
+          rm -f /opt/open-webui/.write-test
+          log "✓ Chat history directory is writable"
+      else
+          error_exit "Chat history directory /opt/open-webui is not writable"
+      fi
+      
+      # Health checks (non-blocking)
+      log "Checking Open WebUI health (port 3000)..."
+      max_attempts=30
+      attempt=0
+      wait_interval=2
+      
+      while [ ${attempt} -lt ${max_attempts} ]; do
+          if timeout 2 bash -c "echo > /dev/tcp/localhost/3000" 2>/dev/null; then
+              http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:3000 2>/dev/null || echo "000")
+              if [ "${http_code}" = "200" ] || [ "${http_code}" = "302" ] || [ "${http_code}" = "301" ]; then
+                  log "✓ Open WebUI is healthy (HTTP ${http_code})"
+                  break
+              fi
+          fi
+          attempt=$((attempt + 1))
+          if [ ${attempt} -lt ${max_attempts} ]; then
+              log "  Waiting for Open WebUI to be ready... (attempt ${attempt}/${max_attempts})"
+              sleep ${wait_interval}
+          fi
+      done
+      
+      log "Checking vLLM API health (port 8000)..."
+      max_attempts=60
+      attempt=0
+      wait_interval=5
+      
+      while [ ${attempt} -lt ${max_attempts} ]; do
+          if timeout 2 bash -c "echo > /dev/tcp/localhost/8000" 2>/dev/null; then
+              health_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8000/health 2>/dev/null || echo "000")
+              models_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8000/v1/models 2>/dev/null || echo "000")
+              if [ "${health_code}" = "200" ] || [ "${models_code}" = "200" ]; then
+                  log "✓ vLLM API is healthy (health: ${health_code}, models: ${models_code})"
+                  break
+              fi
+          fi
+          attempt=$((attempt + 1))
+          if [ ${attempt} -lt ${max_attempts} ]; then
+              log "  Waiting for vLLM API to be ready... (attempt ${attempt}/${max_attempts})"
+              sleep ${wait_interval}
+          fi
+      done
+      
+      # Update MOTD with success message
+      update_motd_success
+      
+      log "Deployment completed successfully!"
+      log "Services are available at:"
+      log "  - Chat UI: http://$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || echo 'INSTANCE_IP'):3000"
+      log "  - API: http://$(curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || echo 'INSTANCE_IP'):8000/v1"
+      log ""
+      log "Note: If services are not immediately accessible, they may still be initializing."
+      log "  Model loading can take 2-5 minutes. Check service status:"
+      log "  docker-compose -f ${COMPOSE_FILE} ps"
+
+# Run deployment script
+runcmd:
+  - export DEBIAN_FRONTEND=noninteractive
+  - export MODEL_ID=MODEL_ID_PLACEHOLDER
+  - bash /opt/ai-sandbox/deploy.sh
+

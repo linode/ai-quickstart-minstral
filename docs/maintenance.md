@@ -1,6 +1,6 @@
 # Maintenance
 
-This guide covers common maintenance tasks for your AI Sandbox instance.
+This guide covers common maintenance tasks for your AI Quickstart - Minstral LLM instance.
 
 ## Updating Services
 

@@ -1,6 +1,6 @@
-# AI Sandbox Deployment Scripts
+# AI Quickstart - Minstral LLM Deployment Scripts
 
-Scripts for independent deployment and testing of the AI Sandbox on Linode instances.
+Scripts for independent deployment and testing of AI Quickstart - Minstral LLM on Linode instances.
 
 ## Prerequisites
 
@@ -85,31 +85,7 @@ You'll be prompted to select region and instance size from RTX4000 options.
 
 **Note**: Only RTX4000 instances are supported. See available regions and sizes above.
 
-**Output**: Creates instance and saves info to `.instance-info-<ID>.json`
-
-#### `deploy-direct.sh`
-Deploy StackScript to an existing instance.
-
-```bash
-./scripts/deploy-direct.sh <instance-id> [stackscript-file]
-```
-
-**Example**:
-```bash
-./scripts/deploy-direct.sh 12345678
-```
-
-#### `run-stackscript.sh`
-Run StackScript on an existing instance (by ID or IP).
-
-```bash
-./scripts/run-stackscript.sh <instance-id-or-ip> [stackscript-file]
-```
-
-**Example**:
-```bash
-./scripts/run-stackscript.sh 192.168.1.100
-```
+**Output**: Creates instance with cloud-init configuration and saves info to `.instance-info-<ID>.json`
 
 #### `validate-services.sh`
 Validate that services are running and accessible.
@@ -163,8 +139,8 @@ Delete a test instance.
    ```
 
 4. **Test and iterate**:
-   - Make changes to StackScript
-   - Re-run on existing instance: `./scripts/run-stackscript.sh <instance-id>`
+   - Make changes to cloud-init configuration
+   - Create a new instance to test changes
    - Validate again
 
 5. **Cleanup when done**:
@@ -174,14 +150,14 @@ Delete a test instance.
 
 ### Testing on Existing Instance
 
-If you already have a Linode instance:
+If you already have a Linode instance, you can manually deploy by copying the cloud-init configuration:
 
 ```bash
-# Run StackScript on existing instance
-./scripts/run-stackscript.sh <instance-ip>
+# Copy cloud-init file to instance
+scp cloud-init/ai-sandbox.yaml root@<instance-ip>:/tmp/
 
-# Validate services
-./scripts/validate-services.sh <instance-ip>
+# Run cloud-init manually (if needed)
+# Note: Cloud-init typically runs automatically on first boot
 ```
 
 ## Environment Variables
@@ -240,7 +216,7 @@ The log file location is displayed at the start of each deployment.
 ### Deployment Fails
 - Wait longer for instance to boot (may take 2-3 minutes)
 - Check SSH connectivity: `ssh root@<instance-ip>`
-- Verify StackScript file exists: `ls -la stackscripts/ai-sandbox.sh`
+- Verify cloud-init file exists: `ls -la cloud-init/ai-sandbox.yaml`
 - **Check log file**: `tail ~/.ai-sandbox-deploy.log` for deployment errors
 
 ### Services Not Accessible
@@ -251,9 +227,9 @@ The log file location is displayed at the start of each deployment.
 
 ## Next Steps
 
-After successful independent deployment:
+After successful deployment:
 1. Test the chat interface: `http://<instance-ip>:3000`
 2. Test the API: `http://<instance-ip>:8000/v1`
-3. Demonstrate to Marketplace team
-4. Proceed to Phase 6: Marketplace Integration
+3. Configure firewall rules to protect your services
+4. Review the [Security Guide](../docs/security.md) for best practices
 

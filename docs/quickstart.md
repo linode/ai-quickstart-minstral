@@ -1,10 +1,10 @@
 # Quick Start Guide
 
-Deploy the AI Sandbox to a clean Linode GPU instance in minutes using automated scripts.
+Deploy AI Quickstart - Minstral LLM to a clean Linode GPU instance in minutes using automated scripts.
 
 ## Overview
 
-This guide walks you through deploying the AI Sandbox stack to a fresh Linode GPU instance. The deployment process:
+This guide walks you through deploying the AI Quickstart - Minstral LLM stack to a fresh Linode GPU instance. The deployment process:
 1. Creates a new Linode GPU instance
 2. Installs NVIDIA drivers, Docker, and dependencies
 3. Configures and starts the AI services
@@ -42,7 +42,7 @@ sudo apt-get install jq
 
 ## Deployment
 
-Deploy the AI Sandbox to a clean Linode GPU instance:
+Deploy AI Quickstart - Minstral LLM to a clean Linode GPU instance:
 
 **Interactive Mode** (recommended for first-time users):
 
@@ -74,8 +74,8 @@ Example:
 
 ### What Happens During Deployment
 
-1. **Instance Creation**: Creates a new Linode GPU instance with your configuration
-2. **StackScript Deployment**: Installs NVIDIA drivers, Docker, and dependencies
+1. **Instance Creation**: Creates a new Linode GPU instance with your configuration and cloud-init
+2. **Cloud-init Deployment**: Automatically installs NVIDIA drivers, Docker, and dependencies on first boot
 3. **Service Initialization**: Waits for services to start (3-5 minutes)
 4. **Validation**: Verifies all services are running correctly
 

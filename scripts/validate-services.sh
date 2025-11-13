@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Purpose:
-#   Validates that AI Sandbox services (API and UI) are running and accessible
+#   Validates that AI Quickstart - Minstral LLM services (API and UI) are running and accessible
 #   after deployment. Checks SSH connectivity, Docker Compose service status,
 #   port accessibility, and endpoint responses. Provides comprehensive validation
 #   report for deployment verification.
@@ -15,7 +15,7 @@
 #   - curl: For testing HTTP endpoints (usually pre-installed)
 #   - jq: For parsing Docker Compose JSON output (optional but recommended)
 #   - bash: With /dev/tcp support for port checking (standard on Linux/macOS)
-#   - Instance must have completed StackScript execution
+#   - Instance must have completed cloud-init deployment
 #
 # Troubleshooting:
 #   - "Cannot connect via SSH": Verify instance is running, check firewall rules
@@ -23,6 +23,7 @@
 #   - "Ports not accessible": Check firewall rules, verify services started correctly
 #   - "API/UI not responding": Services may still be initializing, wait and retry
 #   - False negatives: Services may be starting, re-run validation after waiting
+#   - Check deployment logs: ssh root@<ip> 'tail -f /var/log/cloud-init-output.log'
 #   - Check deployment logs: ssh root@<ip> 'tail -f /var/log/ai-sandbox/deployment.log'
 #
 # Specification Links:
@@ -48,7 +49,7 @@ if [ -z "${INSTANCE_IP}" ]; then
     exit 1
 fi
 
-echo -e "${GREEN}Validating AI Sandbox services on ${INSTANCE_IP}...${NC}"
+echo -e "${GREEN}Validating AI Quickstart - Minstral LLM services on ${INSTANCE_IP}...${NC}"
 echo ""
 
 # Check SSH connectivity
@@ -59,11 +60,11 @@ fi
 
 echo -e "${GREEN}✓ SSH connection successful${NC}"
 
-# Check if StackScript has run
+# Check if cloud-init deployment has run
 if ssh root@"${INSTANCE_IP}" "[ -f /opt/ai-sandbox/docker-compose.yml ]" 2>/dev/null; then
     echo -e "${GREEN}✓ Docker Compose configuration found${NC}"
 else
-    echo -e "${YELLOW}⚠ StackScript may not have completed yet${NC}"
+    echo -e "${YELLOW}⚠ Cloud-init deployment may not have completed yet${NC}"
 fi
 
 # Check if Docker Compose services are running

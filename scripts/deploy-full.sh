@@ -1,38 +1,34 @@
 #!/bin/bash
 #
 # Purpose:
-#   End-to-end deployment workflow that creates a Linode GPU instance and deploys
-#   the AI Sandbox StackScript in one command. Combines create-instance.sh and
-#   deploy-direct.sh with validation for a complete deployment experience.
+#   End-to-end deployment workflow that creates a Linode GPU instance with cloud-init
+#   configuration and validates the deployment. Combines create-instance.sh with
+#   validation for a complete deployment experience.
 #
 #   Why it exists: Simplifies the deployment process to a single command for
 #   quick testing and demonstration. Provides a complete workflow from instance
-#   creation to validated deployment.
+#   creation to validated deployment. Cloud-init automatically deploys services on first boot.
 #
 # Dependencies:
 #   - All dependencies from create-instance.sh (linode-cli, jq, openssl)
-#   - All dependencies from deploy-direct.sh (SSH access, StackScript file)
 #   - validate-services.sh: For post-deployment validation
-#   - Internet connectivity: For instance creation and StackScript deployment
+#   - Internet connectivity: For instance creation and cloud-init deployment
 #
 # Troubleshooting:
 #   - "Failed to create instance": See create-instance.sh troubleshooting
-#   - "Deployment failed": See deploy-direct.sh troubleshooting
 #   - "Services not ready": Wait longer (3-5 minutes), services may still be starting
 #   - Validation warnings: Normal if services are still initializing, re-run validation
 #   - Instance info file missing: Check .instance-info-<ID>.json was created
-#   - See individual script troubleshooting for component-specific issues
+#   - Cloud-init logs: Check /var/log/cloud-init-output.log on the instance
 #
 # Specification Links:
 #   - Feature Spec: specs/001-ai-sandbox/spec.md
 #   - Tasks: specs/001-ai-sandbox/tasks.md (Phase 3, T044)
 #   - Quick Start: specs/001-ai-sandbox/quickstart.md
 #
-# Usage: ./deploy-full.sh [instance-type] [region] [model-id] [stackscript-type]
+# Usage: ./deploy-full.sh [instance-type] [region] [model-id]
 #   If parameters are omitted, interactive prompts will be shown
-#   stackscript-type: "clean" (default) or "golden"
-#     - "clean": Uses ai-sandbox-clean.sh (installs Docker)
-#     - "golden": Uses ai-sandbox-golden.sh (assumes Docker pre-installed)
+#   model-id: Optional, defaults to mistralai/Mistral-7B-Instruct-v0.3
 
 set -euo pipefail
 
@@ -238,7 +234,7 @@ prompt_instance_size() {
 }
 
 # Initialize logging (LOG_DIR and LOG_FILE already set above)
-log "=== AI Sandbox Deployment Started ==="
+log "=== AI Quickstart - Minstral LLM Deployment Started ==="
 log "Script: ${SCRIPT_DIR}/deploy-full.sh"
 log "Working directory: ${PROJECT_ROOT}"
 
@@ -255,7 +251,7 @@ if [ -n "${1:-}" ]; then
     INSTANCE_TYPE=$(prompt_instance_size "${1:-}")
 elif [ "${IS_INTERACTIVE}" = "true" ]; then
     # Interactive mode - prompt user
-    echo -e "${CYAN}=== AI Sandbox Deployment Configuration ===${NC}"
+    echo -e "${CYAN}=== AI Quickstart - Minstral LLM Deployment Configuration ===${NC}"
     echo -e "${CYAN}📋 Log file: ${LOG_FILE}${NC}"
     echo ""
     INSTANCE_TYPE=$(prompt_instance_size "")
@@ -278,99 +274,41 @@ fi
 
 MODEL_ID="${3:-mistralai/Mistral-7B-Instruct-v0.3}"
 
-# Prompt for StackScript type if not provided
-if [ -n "${4:-}" ]; then
-    # Parameter provided - validate and use it
-    STACKSCRIPT_TYPE="${4}"
-elif [ "${IS_INTERACTIVE}" = "true" ]; then
-    # Interactive mode - prompt user
-    echo "" >&2
-    echo -e "${CYAN}Select StackScript Type:${NC}" >&2
-    echo "  1) Clean instance (will install Docker)" >&2
-    echo "  2) Golden image (Docker pre-installed)" >&2
-    
-    # Use /dev/tty for reading if available, otherwise stdin
-    tty_input=""
-    if [ -c /dev/tty ] && [ -r /dev/tty ] 2>/dev/null; then
-        tty_input="</dev/tty"
-    fi
-    
-    while true; do
-        echo -ne "${CYAN}Enter choice [1-2] (default: 1): ${NC}" >&2
-        # Try to read from TTY, fallback to stdin
-        choice=""
-        if ! eval "read -r choice ${tty_input}" 2>/dev/null; then
-            # If reading fails, use default
-            echo -e "\n${YELLOW}Cannot read input. Using default (clean).${NC}" >&2
-            STACKSCRIPT_TYPE="clean"
-            break
-        fi
-        
-        if [ -z "${choice}" ] || [ "${choice}" = "1" ]; then
-            STACKSCRIPT_TYPE="clean"
-            break
-        elif [ "${choice}" = "2" ]; then
-            STACKSCRIPT_TYPE="golden"
-            break
-        else
-            echo -e "${RED}Invalid choice. Please enter 1 or 2.${NC}" >&2
-        fi
-    done
-else
-    # Non-interactive mode - use default
-    STACKSCRIPT_TYPE="clean"
-fi
-
-# Validate and set StackScript file based on type
-case "${STACKSCRIPT_TYPE}" in
-    clean)
-        STACKSCRIPT_FILE="stackscripts/ai-sandbox-clean.sh"
-        STACKSCRIPT_DESC="Clean instance (will install Docker)"
-        ;;
-    golden)
-        STACKSCRIPT_FILE="stackscripts/ai-sandbox.sh"
-        STACKSCRIPT_DESC="Golden image (Docker pre-installed)"
-        ;;
-    *)
-        echo -e "${RED}Error: Invalid stackscript-type '${STACKSCRIPT_TYPE}'${NC}" >&2
-        echo "Valid options: 'clean' or 'golden'" >&2
-        exit 1
-        ;;
-esac
-
-# Verify StackScript file exists
-if [ ! -f "${PROJECT_ROOT}/${STACKSCRIPT_FILE}" ]; then
-    show_error "StackScript file not found: ${STACKSCRIPT_FILE}"
+# Verify cloud-init file exists
+CLOUD_INIT_FILE="${PROJECT_ROOT}/cloud-init/ai-sandbox.yaml"
+if [ ! -f "${CLOUD_INIT_FILE}" ]; then
+    show_error "Cloud-init file not found: ${CLOUD_INIT_FILE}"
     exit 1
 fi
 
 echo ""
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     AI Sandbox - Full Deployment Workflow                ║${NC}"
+echo -e "${BLUE}║     AI Quickstart - Minstral LLM - Full Deployment Workflow ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "Configuration:"
 echo "  Instance Type: ${INSTANCE_TYPE}"
 echo "  Region: ${REGION}"
 echo "  Model ID: ${MODEL_ID}"
-echo "  StackScript: ${STACKSCRIPT_TYPE} (${STACKSCRIPT_DESC})"
+echo "  Deployment: Cloud-init (automatic on first boot)"
 echo ""
 
-# Step 1: Create instance
-echo -e "${GREEN}Step 1: Creating Linode GPU instance...${NC}"
+# Step 1: Create instance with cloud-init
+echo -e "${GREEN}Step 1: Creating Linode GPU instance with cloud-init...${NC}"
 cd "${PROJECT_ROOT}"
 
-# Export LOG_FILE so create-instance.sh can log errors to it
+# Export LOG_FILE and MODEL_ID so create-instance.sh can use them
 export LOG_FILE
+export MODEL_ID
 
 # Call create-instance.sh
 # When called from deploy-full.sh, create-instance.sh detects non-interactive mode
 # and auto-generates password (no prompt needed)
-log "Calling create-instance.sh with: type=${INSTANCE_TYPE}, region=${REGION}"
+log "Calling create-instance.sh with: type=${INSTANCE_TYPE}, region=${REGION}, model=${MODEL_ID}"
 
 # Capture stdout for parsing, stderr goes to terminal for any error messages
 # Using tee to capture ALL output in the log file in real-time
-INSTANCE_OUTPUT=$("${SCRIPT_DIR}/create-instance.sh" "${INSTANCE_TYPE}" "${REGION}" "" "" 2>&1 | tee -a "${LOG_FILE}")
+INSTANCE_OUTPUT=$("${SCRIPT_DIR}/create-instance.sh" "${INSTANCE_TYPE}" "${REGION}" "" "" "${MODEL_ID}" 2>&1 | tee -a "${LOG_FILE}")
 CREATE_EXIT_CODE=$?
 
 # Log the output for debugging
@@ -394,6 +332,7 @@ fi
 log "Instance created successfully: ${INSTANCE_ID}"
 
 echo -e "${GREEN}✓ Instance created: ${INSTANCE_ID}${NC}"
+echo -e "${CYAN}Cloud-init will automatically deploy services on first boot${NC}"
 echo ""
 
 # Get instance IP from the info file
@@ -481,25 +420,38 @@ fi
 
 log "Instance IP: ${INSTANCE_IP}"
 
-# Step 2: Deploy StackScript
-# Note: deploy-direct.sh will wait for SSH to be available before proceeding
-echo -e "${GREEN}Step 2: Deploying StackScript...${NC}"
-log "Deploying StackScript to instance ${INSTANCE_ID}"
-log "StackScript file: ${STACKSCRIPT_FILE}"
-export MODEL_ID="${MODEL_ID}"
-if ! "${SCRIPT_DIR}/deploy-direct.sh" "${INSTANCE_ID}" "${STACKSCRIPT_FILE}" 2>&1 | tee -a "${LOG_FILE}"; then
-    echo -e "${YELLOW}⚠️  Warning: Deployment may have encountered issues${NC}" >&2
-    echo "Check logs on the instance for details" >&2
-    log "WARNING: StackScript deployment may have failed"
+# Step 2: Wait for cloud-init to complete and services to start
+echo -e "${GREEN}Step 2: Waiting for cloud-init deployment to complete...${NC}"
+echo "Cloud-init is running automatically on first boot."
+echo "This may take 3-5 minutes..."
+log "Waiting for cloud-init deployment on instance ${INSTANCE_ID}"
+
+# Wait for SSH to be available first
+echo "Waiting for SSH to be available..."
+SSH_READY=false
+for i in {1..60}; do
+    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes root@"${INSTANCE_IP}" "echo 'SSH ready'" 2>/dev/null; then
+        SSH_READY=true
+        echo -e "${GREEN}✓ SSH connection established${NC}"
+        break
+    fi
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "  Still waiting for SSH... (${i}/60 attempts)"
+    fi
+    sleep 5
+done
+
+if [ "${SSH_READY}" = "false" ]; then
+    echo -e "${YELLOW}⚠️  Warning: SSH not ready yet, but continuing...${NC}" >&2
+    echo "Cloud-init may still be running. Services will start automatically." >&2
 fi
 
-echo ""
-echo -e "${GREEN}Step 3: Waiting for services to start...${NC}"
-echo "This may take 3-5 minutes..."
-sleep 60
+# Wait additional time for cloud-init to complete deployment
+echo "Waiting for services to initialize (this may take 3-5 minutes)..."
+sleep 120
 
 # Step 3: Validate deployment
-echo -e "${GREEN}Step 4: Validating deployment...${NC}"
+echo -e "${GREEN}Step 3: Validating deployment...${NC}"
 log "Validating services on instance ${INSTANCE_IP}"
 if ! "${SCRIPT_DIR}/validate-services.sh" "${INSTANCE_IP}" 2>&1 | tee -a "${LOG_FILE}"; then
     echo -e "${YELLOW}⚠️  Warning: Some services may not be ready yet${NC}" >&2
@@ -524,6 +476,10 @@ echo "  API: http://${INSTANCE_IP}:8000/v1"
 echo ""
 echo "SSH Access:"
 echo "  ssh root@${INSTANCE_IP}"
+echo ""
+echo "Monitor Deployment:"
+echo "  ssh root@${INSTANCE_IP} 'tail -f /var/log/cloud-init-output.log'"
+echo "  ssh root@${INSTANCE_IP} 'tail -f /var/log/ai-sandbox/deployment.log'"
 echo ""
 # Extract and display root password
 if [ -f "${INSTANCE_INFO_FILE}" ]; then

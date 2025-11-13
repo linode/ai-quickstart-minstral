@@ -11,14 +11,14 @@ This means:
 
 ## Required: Configure a Firewall
 
-**You must configure a Linode Cloud Firewall** to protect your services. This is the primary security measure for the AI Sandbox.
+**You must configure a Linode Cloud Firewall** to protect your services. This is the primary security measure for AI Quickstart - Minstral LLM.
 
 ### Setting Up a Linode Cloud Firewall
 
 1. **Create a Firewall** in the Linode Cloud Manager:
    - Navigate to **Firewalls** in the left sidebar
    - Click **Create Firewall**
-   - Give it a descriptive name (e.g., "AI Sandbox Firewall")
+   - Give it a descriptive name (e.g., "AI Quickstart - Minstral LLM Firewall")
 
 2. **Configure Inbound Rules**:
    - **SSH (Port 22)**: Allow from your IP address only

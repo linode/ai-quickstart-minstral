@@ -1,13 +1,12 @@
 #!/bin/bash
 #
 # Purpose:
-#   Creates a new Linode GPU instance via Linode CLI for AI Sandbox deployment.
-#   This enables independent deployment and testing without using the Marketplace UI.
-#   The script creates the instance, waits for it to boot, and saves instance
-#   information for use by other deployment scripts.
+#   Creates a new Linode GPU instance via Linode CLI for AI Quickstart - Minstral LLM deployment.
+#   The script creates the instance with cloud-init configuration, waits for it to boot,
+#   and saves instance information for use by other deployment scripts.
 #
-#   Why it exists: Enables development workflow and testing before Marketplace
-#   integration. Allows repeatable instance creation for testing iterations.
+#   Why it exists: Enables automated deployment workflow. Allows repeatable instance
+#   creation for testing iterations.
 #
 # Dependencies:
 #   - linode-cli: Linode command-line interface (pip install linode-cli)
@@ -29,8 +28,9 @@
 #   - Tasks: specs/001-ai-sandbox/tasks.md (Phase 3, T041)
 #   - Independent Deployment: specs/001-ai-sandbox/plan.md (Development Priority section)
 #
-# Usage: ./create-instance.sh [instance-type] [region] [root-password] [label]
+# Usage: ./create-instance.sh [instance-type] [region] [root-password] [label] [model-id]
 #   If instance-type or region are omitted, interactive prompts will be shown
+#   model-id: Optional, defaults to mistralai/Mistral-7B-Instruct-v0.3
 
 set -euo pipefail
 
@@ -251,8 +251,26 @@ else
     echo "Generated root password: ${ROOT_PASSWORD}" >&2
 fi
 
-LABEL="${4:-ai-sandbox-$(date +%s)}"
+LABEL="${4:-ai-quickstart-minstral-$(date +%s)}"
+MODEL_ID="${5:-${MODEL_ID:-mistralai/Mistral-7B-Instruct-v0.3}}"
 IMAGE="linode/ubuntu22.04"
+
+# Determine script directory and project root for cloud-init file
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CLOUD_INIT_FILE="${PROJECT_ROOT}/cloud-init/ai-sandbox.yaml"
+
+# Check if cloud-init file exists
+if [ ! -f "${CLOUD_INIT_FILE}" ]; then
+    echo -e "${RED}Error: Cloud-init file not found: ${CLOUD_INIT_FILE}${NC}" >&2
+    exit 1
+fi
+
+# Read cloud-init file and substitute MODEL_ID placeholder
+CLOUD_INIT_CONTENT=$(cat "${CLOUD_INIT_FILE}" | sed "s|MODEL_ID_PLACEHOLDER|${MODEL_ID}|g")
+
+# Base64 encode the cloud-init content (required by linode-cli)
+CLOUD_INIT_B64=$(echo -n "${CLOUD_INIT_CONTENT}" | base64)
 
 # Check if linode-cli is installed
 if ! command -v linode-cli &> /dev/null; then
@@ -306,7 +324,7 @@ done
 
 TEMP_OUTPUT=$(mktemp)
 if [ -n "${SSH_KEY}" ]; then
-    # Create with SSH key
+    # Create with SSH key and cloud-init user_data (base64-encoded)
     # Use --no-defaults to avoid extra output that interferes with JSON parsing
     linode-cli linodes create \
         --type "${INSTANCE_TYPE}" \
@@ -315,10 +333,11 @@ if [ -n "${SSH_KEY}" ]; then
         --root_pass "${ROOT_PASSWORD}" \
         --label "${LABEL}" \
         --authorized_keys "${SSH_KEY}" \
+        --metadata.user_data "${CLOUD_INIT_B64}" \
         --no-defaults \
         --json > "${TEMP_OUTPUT}" 2>&1
 else
-    # Create without SSH key (password only)
+    # Create without SSH key (password only) but with cloud-init user_data (base64-encoded)
     echo "No SSH key found, creating with password only" >&2
     linode-cli linodes create \
         --type "${INSTANCE_TYPE}" \
@@ -326,6 +345,7 @@ else
         --image "${IMAGE}" \
         --root_pass "${ROOT_PASSWORD}" \
         --label "${LABEL}" \
+        --metadata.user_data "${CLOUD_INIT_B64}" \
         --no-defaults \
         --json > "${TEMP_OUTPUT}" 2>&1
 fi
@@ -461,9 +481,14 @@ fi
 echo ""
 echo -e "${GREEN}Instance information saved to: ${INSTANCE_INFO_FILE}${NC}"
 echo ""
-echo "Next steps:"
-echo "  1. Deploy StackScript: ./scripts/deploy-direct.sh ${INSTANCE_ID}"
-echo "  2. Or run full deployment: ./scripts/deploy-full.sh"
+echo "Cloud-init configuration has been applied. The instance will automatically:"
+echo "  - Install Docker and dependencies"
+echo "  - Configure NVIDIA drivers"
+echo "  - Deploy AI Quickstart - Minstral LLM services"
+echo ""
+echo "Monitor deployment:"
+echo "  ssh root@${INSTANCE_IP} 'tail -f /var/log/cloud-init-output.log'"
+echo "  ssh root@${INSTANCE_IP} 'tail -f /var/log/ai-sandbox/deployment.log'"
 echo ""
 echo "SSH access:"
 echo "  ssh root@${INSTANCE_IP}"

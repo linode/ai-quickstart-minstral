@@ -1,6 +1,6 @@
-# One-Click AI Sandbox
+# AI Quickstart - Minstral LLM
 
-A Linode Marketplace App that deploys a complete, pre-configured AI inference stack with both a chat UI and an OpenAI-compatible API endpoint in minutes.
+Deploy a complete, pre-configured AI inference stack with both a chat UI and an OpenAI-compatible API endpoint in minutes on Linode GPU instances.
 
 ## 🚀 Quick Start
 
@@ -8,7 +8,7 @@ Get started quickly by deploying to a clean Linode GPU instance. See the [Quick 
 
 ## ✨ Features
 
-- **One-Click Deployment**: Fully automated setup via Linode Marketplace
+- **One-Click Deployment**: Fully automated setup via cloud-init
 - **Complete AI Stack**: Includes both a web-based chat interface and an OpenAI-compatible API
 - **Pre-Configured**: NVIDIA drivers, Docker, and all dependencies pre-installed
 - **Fast Time-to-Value**: From instance boot to working AI in under 5 minutes
@@ -17,7 +17,7 @@ Get started quickly by deploying to a clean Linode GPU instance. See the [Quick 
 
 ## 🏗️ Architecture
 
-The AI Sandbox consists of two containerized services working together to provide a complete AI inference stack. See the [Architecture Documentation](docs/architecture.md) for detailed information.
+AI Quickstart - Minstral LLM consists of two containerized services working together to provide a complete AI inference stack. See the [Architecture Documentation](docs/architecture.md) for detailed information.
 
 ## 📋 Requirements
 
@@ -72,7 +72,7 @@ Common maintenance tasks including updating services, changing models, viewing l
 
 ## 🤝 Contributing
 
-This is a Linode Marketplace App. For issues or feature requests, please open an issue in this repository.
+For issues or feature requests, please open an issue in this repository.
 
 ## 📄 License
 
@@ -80,6 +80,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ---
 
-**Status**: Draft v1.0  
-**Product**: Akamai Cloud / Linode Marketplace
+**Status**: Draft v1.0
 

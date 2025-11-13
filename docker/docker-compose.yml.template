@@ -1,11 +1,10 @@
 # Purpose:
-#   Docker Compose template for AI Sandbox services (vLLM API and Open WebUI).
-#   This template is used by the StackScript to generate the final docker-compose.yml
+#   Docker Compose template for AI Quickstart - Minstral LLM services (vLLM API and Open WebUI).
+#   This template is used by cloud-init to generate the final docker-compose.yml
 #   with the MODEL_ID placeholder replaced by the actual model identifier.
 #
 #   Why it exists: Enables template-based deployment configuration. Allows
-#   StackScript to customize the model without hardcoding. Supports both
-#   Marketplace and independent deployment workflows.
+#   cloud-init to customize the model without hardcoding.
 #
 # Dependencies:
 #   - Docker Engine: For running containers
@@ -20,14 +19,14 @@
 #   - "Port conflicts": Ensure ports 3000 and 8000 are not in use by other services
 #   - "Volume mount failures": Verify /opt/models and /opt/open-webui directories exist with correct permissions
 #   - "Service startup failures": Check container logs with 'docker-compose logs <service>'
-#   - See stackscripts/ai-sandbox.sh for deployment troubleshooting
+#   - See cloud-init/ai-sandbox.yaml for deployment troubleshooting
 #
 # Specification Links:
 #   - Feature Spec: specs/001-ai-sandbox/spec.md
-#   - StackScript: stackscripts/ai-sandbox.sh (generates final docker-compose.yml from this template)
+#   - Cloud-init: cloud-init/ai-sandbox.yaml (generates final docker-compose.yml from this template)
 #   - Data Model: specs/001-ai-sandbox/data-model.md
 #
-# Note: MODEL_ID_PLACEHOLDER will be replaced by StackScript with actual model ID
+# Note: MODEL_ID_PLACEHOLDER will be replaced by cloud-init with actual model ID
 
 version: '3.8'
 

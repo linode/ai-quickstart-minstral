@@ -2,8 +2,7 @@
 #
 # Purpose:
 #   Installs Docker Engine, Docker Compose, and NVIDIA Container Toolkit on a fresh
-#   Ubuntu instance to prepare it for AI Sandbox deployment. This replicates the
-#   environment that would be provided by a Marketplace base image.
+#   Ubuntu instance to prepare it for AI Quickstart - Minstral LLM deployment.
 #
 # Usage: ./setup-docker.sh
 #   Can be run locally or copied to remote instance
@@ -25,7 +24,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${CYAN}=== Docker & NVIDIA Setup for AI Sandbox ===${NC}"
+echo -e "${CYAN}=== Docker & NVIDIA Setup for AI Quickstart - Minstral LLM ===${NC}"
 echo ""
 
 # Check if running as root
@@ -123,12 +122,12 @@ fi
 echo ""
 echo -e "${GREEN}=== Setup Complete! ===${NC}"
 echo ""
-echo "System is ready for AI Sandbox deployment:"
+echo "System is ready for AI Quickstart - Minstral LLM deployment:"
 echo "  - Docker Engine: $(docker --version | cut -d' ' -f3)"
 echo "  - Docker Compose: $(docker-compose --version | cut -d' ' -f4)"
 echo "  - NVIDIA Container Toolkit: Installed"
 echo ""
 echo "Next steps:"
-echo "  1. Run the AI Sandbox StackScript"
-echo "  2. Or use: docker-compose up -d"
+echo "  1. Deploy AI Quickstart - Minstral LLM using cloud-init (automatic on instance creation)"
+echo "  2. Or manually configure services using docker-compose"
 echo ""

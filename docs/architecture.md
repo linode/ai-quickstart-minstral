@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Sandbox consists of two containerized services that work together to provide a complete AI inference stack:
+AI Quickstart - Minstral LLM consists of two containerized services that work together to provide a complete AI inference stack:
 
 1. **API Service** (`vLLM`): High-performance inference engine
 2. **UI Service** (`Open WebUI`): Feature-rich chat interface
@@ -63,8 +63,8 @@ The UI service automatically connects to the API service running on `localhost:8
 
 When deployed via the scripts:
 
-1. A new Linode GPU instance is created
-2. The StackScript installs system dependencies (NVIDIA drivers, Docker)
+1. A new Linode GPU instance is created with cloud-init configuration
+2. Cloud-init automatically installs system dependencies (NVIDIA drivers, Docker) on first boot
 3. Docker Compose services are configured and started
 4. The selected model is downloaded and cached
 5. Services are validated and ready for use
