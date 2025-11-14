@@ -2,7 +2,14 @@
 
 Scripts for independent deployment and testing of AI Quickstart - Mistral LLM on Linode instances.
 
+## Platform Support
+
+- **Linux/macOS**: Use bash scripts (`.sh` files) - See instructions below
+- **Windows**: Use PowerShell scripts (`.ps1` files) - See [Windows Deployment Guide](../docs/windows-deployment.md)
+
 ## Prerequisites
+
+### Linux/macOS (Bash Scripts)
 
 Before using these scripts, ensure you have:
 
@@ -24,6 +31,10 @@ Before using these scripts, ensure you have:
    ```bash
    ./scripts/check-prerequisites.sh
    ```
+
+### Windows (PowerShell Scripts)
+
+See the [Windows Deployment Guide](../docs/windows-deployment.md) for Windows-specific prerequisites and instructions.
 
 ## Scripts
 

@@ -6,6 +6,8 @@ Deploy a complete, pre-configured AI inference stack with both a chat UI and an 
 
 Get started quickly by deploying to a clean Linode GPU instance. See the [Quick Start Guide](docs/quickstart.md) for step-by-step instructions.
 
+**Windows Users**: See the [Windows Deployment Guide](docs/windows-deployment.md) for PowerShell scripts and Windows-specific instructions.
+
 ## ✨ Features
 
 - **One-Click Deployment**: Fully automated setup via cloud-init
@@ -24,6 +26,10 @@ AI Quickstart - Mistral LLM consists of two containerized services working toget
 - A Linode GPU instance (any supported GPU instance type)
   - **Note**: GPU instances require GPU access to be enabled on your account. If you don't see GPU instance types available, please contact Linode Support to enable GPU access.
 - Linode CLI configured with API token (for script-based deployment)
+- **Platform Support**: 
+  - **Linux/macOS**: Bash scripts (`.sh` files)
+  - **Windows**: PowerShell scripts (`.ps1` files) - See [Windows Deployment Guide](docs/windows-deployment.md)
+  - **All Platforms**: Python scripts (optional, cross-platform)
 
 ## 🎯 Use Cases
 
@@ -65,6 +71,7 @@ Common maintenance tasks including updating services, changing models, viewing l
 ## 📚 Documentation
 
 - [Quick Start Guide](docs/quickstart.md) - Get started with deployment
+- [Windows Deployment Guide](docs/windows-deployment.md) - PowerShell scripts and Windows-specific instructions
 - [Architecture](docs/architecture.md) - System architecture and technical details
 - [API Usage](docs/api-usage.md) - API reference and integration examples
 - [Security Guide](docs/security.md) - Security best practices and firewall setup
