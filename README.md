@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-# AI Quickstart - Mistral LLM
-=======
-# AI Quickstart - Minstral 7B LLM
->>>>>>> bd07869ca3a19fe8e2b8b71bd3e7124514d318d6
+# AI Quickstart - Mistral 7B LLM
 
 Deploy a complete, pre-configured AI inference stack with both a chat UI and an OpenAI-compatible API endpoint in minutes on Linode GPU instances.
 
